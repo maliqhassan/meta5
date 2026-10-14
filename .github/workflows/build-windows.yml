@@ -1,0 +1,57 @@
+name: Build Windows app
+
+on:
+  push:
+    paths:
+      - "AdmLogixManager/**"
+      - ".github/workflows/build-windows.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: AdmLogixManager
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt pyinstaller
+
+      - name: Smoke test (import modules, build reports from an empty database)
+        run: python -c "import db, reports, importer, widgets, app; print('ok')"
+
+      - name: Build OfficeManager.exe
+        run: python -m PyInstaller --noconfirm --noconsole --onedir --name OfficeManager app.py
+
+      - name: Package zip
+        shell: pwsh
+        run: |
+          Copy-Item README.md dist/OfficeManager/
+          Compress-Archive -Path dist/OfficeManager -DestinationPath ../OfficeManager-Windows.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OfficeManager-Windows
+          path: OfficeManager-Windows.zip
+
+      - name: Publish download (GitHub Release "latest")
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Office Manager for Windows (latest build)
+          prerelease: false
+          make_latest: true
+          files: OfficeManager-Windows.zip
+          body: |
+            Download **OfficeManager-Windows.zip**, unzip it anywhere (e.g. Desktop),
+            open the `OfficeManager` folder and double-click **OfficeManager.exe**.
+            No Python needed. Your data is saved in the `data` folder next to the exe.
